@@ -76,7 +76,7 @@ public protocol Expressible {
 extension Expressible {
 
     // naïve compiler for statements that can’t be bound, e.g., CREATE TABLE
-    func asSQL() -> String {
+    public func asSQL() -> String {
         let expressed = expression
         return expressed.template.reduce(("", 0)) { memo, character in
             let (template, index) = memo

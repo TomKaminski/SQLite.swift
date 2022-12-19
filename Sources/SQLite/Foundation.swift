@@ -49,7 +49,7 @@ extension Date: Value {
     }
 
     public static func fromDatatypeValue(_ stringValue: String) -> Date {
-        dateFormatter.date(from: stringValue)!
+        dateFormatter.date(from: stringValue) ?? dateFormatterTimezoned.date(from: stringValue) ?? Date()
     }
 
     public var datatypeValue: String {
@@ -61,9 +61,15 @@ extension Date: Value {
 /// A global date formatter used to serialize and deserialize `NSDate` objects.
 /// If multiple date formats are used in an application’s database(s), use a
 /// custom `Value` type per additional format.
-public var dateFormatter: DateFormatter = {
+public var dateFormatterTimezoned: DateFormatter = {
     let formatter = DateFormatter()
     formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.ZZZZZ"
+    return formatter
+}()
+
+public var dateFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS"
     return formatter
 }()
 

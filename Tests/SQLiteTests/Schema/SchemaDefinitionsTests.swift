@@ -11,7 +11,7 @@ class ColumnDefinitionTests: XCTestCase {
 
         ("\"other_id\" INTEGER NOT NULL REFERENCES \"other_table\" (\"some_id\")",
         ColumnDefinition(name: "other_id", primaryKey: nil, type: .INTEGER, nullable: false, defaultValue: .NULL,
-                         references: .init(table: "other_table", column: "", primaryKey: "some_id", onUpdate: nil, onDelete: nil))),
+                         references: .init(fromColumn: "", toTable: "other_table", toColumn: "some_id", onUpdate: nil, onDelete: nil))),
 
         ("\"text\" TEXT",
         ColumnDefinition(name: "text", primaryKey: nil, type: .TEXT, nullable: true, defaultValue: .NULL, references: nil)),
@@ -32,7 +32,7 @@ class ColumnDefinitionTests: XCTestCase {
                           defaultValue: .numericLiteral("123.123"), references: nil))
     ]
 
-    #if !os(Linux)
+    #if !(os(Linux) || os(Android))
     override class var defaultTestSuite: XCTestSuite {
         let suite = XCTestSuite(forTestCaseClass: ColumnDefinitionTests.self)
 
@@ -71,8 +71,68 @@ class AffinityTests: XCTestCase {
         XCTAssertEqual(ColumnDefinition.Affinity("NUMERIC"), .NUMERIC)
     }
 
-    func test_returns_TEXT_for_unknown_type() {
-        XCTAssertEqual(ColumnDefinition.Affinity("baz"), .TEXT)
+    // [Determination Of Column Affinity](https://sqlite.org/datatype3.html#determination_of_column_affinity)
+    // Rule 1
+    func testIntegerAffinity() {
+        let declared = [
+            "INT",
+            "INTEGER",
+            "TINYINT",
+            "SMALLINT",
+            "MEDIUMINT",
+            "BIGINT",
+            "UNSIGNED BIG INT",
+            "INT2",
+            "INT8"
+        ]
+        XCTAssertTrue(declared.allSatisfy({ColumnDefinition.Affinity($0) == .INTEGER}))
+    }
+
+    // Rule 2
+    func testTextAffinity() {
+        let declared = [
+            "CHARACTER(20)",
+            "VARCHAR(255)",
+            "VARYING CHARACTER(255)",
+            "NCHAR(55)",
+            "NATIVE CHARACTER(70)",
+            "NVARCHAR(100)",
+            "TEXT",
+            "CLOB"
+        ]
+        XCTAssertTrue(declared.allSatisfy({ColumnDefinition.Affinity($0) == .TEXT}))
+    }
+
+    // Rule 3
+    func testBlobAffinity() {
+        XCTAssertEqual(ColumnDefinition.Affinity("BLOB"), .BLOB)
+    }
+
+    // Rule 4
+    func testRealAffinity() {
+        let declared = [
+            "REAL",
+            "DOUBLE",
+            "DOUBLE PRECISION",
+            "FLOAT"
+        ]
+        XCTAssertTrue(declared.allSatisfy({ColumnDefinition.Affinity($0) == .REAL}))
+    }
+
+    // Rule 5
+    func testNumericAffinity() {
+        let declared = [
+            "NUMERIC",
+            "DECIMAL(10,5)",
+            "BOOLEAN",
+            "DATE",
+            "DATETIME"
+        ]
+        XCTAssertTrue(declared.allSatisfy({ColumnDefinition.Affinity($0) == .NUMERIC}))
+    }
+
+    func test_returns_NUMERIC_for_unknown_type() {
+        XCTAssertEqual(ColumnDefinition.Affinity("baz"), .NUMERIC)
     }
 }
 
@@ -123,7 +183,7 @@ class IndexDefinitionTests: XCTestCase {
         "CREATE INDEX IF NOT EXISTS \"index_tests\" ON \"tests\" (\"test_column\")")
     ]
 
-    #if !os(Linux)
+    #if !(os(Linux) || os(Android))
     override class var defaultTestSuite: XCTestSuite {
         let suite = XCTestSuite(forTestCaseClass: IndexDefinitionTests.self)
 
@@ -185,9 +245,9 @@ class ForeignKeyDefinitionTests: XCTestCase {
     func test_toSQL() {
         XCTAssertEqual(
             ColumnDefinition.ForeignKey(
-                table: "foo",
-                column: "bar",
-                primaryKey: "bar_id",
+                fromColumn: "bar",
+                toTable: "foo",
+                toColumn: "bar_id",
                 onUpdate: nil,
                 onDelete: "SET NULL"
             ).toSQL(), """

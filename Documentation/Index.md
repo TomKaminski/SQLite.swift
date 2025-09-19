@@ -1,21 +1,24 @@
 # SQLite.swift Documentation
 
+- [SQLite.swift Documentation](#sqliteswift-documentation)
   - [Installation](#installation)
     - [Swift Package Manager](#swift-package-manager)
     - [Carthage](#carthage)
     - [CocoaPods](#cocoapods)
+      - [Requiring a specific version of SQLite](#requiring-a-specific-version-of-sqlite)
+      - [Using SQLite.swift with SQLCipher](#using-sqliteswift-with-sqlcipher)
     - [Manual](#manual)
   - [Getting Started](#getting-started)
     - [Connecting to a Database](#connecting-to-a-database)
       - [Read-Write Databases](#read-write-databases)
       - [Read-Only Databases](#read-only-databases)
-      - [In a Shared Group Container](#in-a-shared-group-container)
+      - [In a shared group container](#in-a-shared-group-container)
       - [In-Memory Databases](#in-memory-databases)
       - [URI parameters](#uri-parameters)
       - [Thread-Safety](#thread-safety)
   - [Building Type-Safe SQL](#building-type-safe-sql)
     - [Expressions](#expressions)
-      - [Compound Expressions](#compound-expressions)
+    - [Compound Expressions](#compound-expressions)
     - [Queries](#queries)
   - [Creating a Table](#creating-a-table)
     - [Create Table Options](#create-table-options)
@@ -24,8 +27,11 @@
   - [Inserting Rows](#inserting-rows)
     - [Handling SQLite errors](#handling-sqlite-errors)
     - [Setters](#setters)
+          - [Infix Setters](#infix-setters)
+          - [Postfix Setters](#postfix-setters)
   - [Selecting Rows](#selecting-rows)
     - [Iterating and Accessing Values](#iterating-and-accessing-values)
+      - [Failable iteration](#failable-iteration)
     - [Plucking Rows](#plucking-rows)
     - [Building Complex Queries](#building-complex-queries)
       - [Selecting Columns](#selecting-columns)
@@ -34,6 +40,9 @@
         - [Table Aliasing](#table-aliasing)
       - [Filtering Rows](#filtering-rows)
         - [Filter Operators and Functions](#filter-operators-and-functions)
+          - [Infix Filter Operators](#infix-filter-operators)
+          - [Prefix Filter Operators](#prefix-filter-operators)
+          - [Filtering Functions](#filtering-functions)
       - [Sorting Rows](#sorting-rows)
       - [Limiting and Paging Results](#limiting-and-paging-results)
       - [Recursive and Hierarchical Queries](#recursive-and-hierarchical-queries)
@@ -43,16 +52,18 @@
   - [Deleting Rows](#deleting-rows)
   - [Transactions and Savepoints](#transactions-and-savepoints)
   - [Querying the Schema](#querying-the-schema)
+    - [Indexes and Columns](#indexes-and-columns)
   - [Altering the Schema](#altering-the-schema)
     - [Renaming Tables](#renaming-tables)
     - [Dropping Tables](#dropping-tables)
     - [Adding Columns](#adding-columns)
       - [Added Column Constraints](#added-column-constraints)
-    - [Schema Changer](#schemachanger)
-      - [Adding Columns](#adding-columns)
+    - [SchemaChanger](#schemachanger)
+      - [Adding Columns](#adding-columns-1)
       - [Renaming Columns](#renaming-columns)
       - [Dropping Columns](#dropping-columns)
       - [Renaming/Dropping Tables](#renamingdropping-tables)
+      - [Creating Tables](#creating-tables)      
     - [Indexes](#indexes)
       - [Creating Indexes](#creating-indexes)
       - [Dropping Indexes](#dropping-indexes)
@@ -61,24 +72,32 @@
     - [Date-Time Values](#date-time-values)
     - [Binary Data](#binary-data)
   - [Codable Types](#codable-types)
+    - [Inserting Codable Types](#inserting-codable-types)
+    - [Updating Codable Types](#updating-codable-types)
+    - [Retrieving Codable Types](#retrieving-codable-types)
+    - [Restrictions](#restrictions)
   - [Other Operators](#other-operators)
+          - [Other Infix Operators](#other-infix-operators)
+          - [Other Prefix Operators](#other-prefix-operators)
   - [Core SQLite Functions](#core-sqlite-functions)
   - [Aggregate SQLite Functions](#aggregate-sqlite-functions)
-  - [Date and Time Functions](#date-and-time-functions)
+  - [Window SQLite Functions](#window-sqlite-functions)
+  - [Date and Time functions](#date-and-time-functions)
   - [Custom SQL Functions](#custom-sql-functions)
+  - [Custom Aggregations](#custom-aggregations)
   - [Custom Collations](#custom-collations)
   - [Full-text Search](#full-text-search)
+    - [FTS5](#fts5)
   - [Executing Arbitrary SQL](#executing-arbitrary-sql)
+  - [Online Database Backup](#online-database-backup)
   - [Attaching and detaching databases](#attaching-and-detaching-databases)
   - [Logging](#logging)
+  - [Vacuum](#vacuum)
 
 [↩]: #sqliteswift-documentation
 
 
 ## Installation
-
-> _Note:_ SQLite.swift requires Swift 5 (and
-> [Xcode 10.2](https://developer.apple.com/xcode/downloads/)) or greater.
 
 ### Swift Package Manager
 
@@ -90,7 +109,7 @@ process of downloading, compiling, and linking dependencies.
 
   ```swift
   dependencies: [
-    .package(url: "https://github.com/stephencelis/SQLite.swift.git", from: "0.14.1")
+    .package(url: "https://github.com/stephencelis/SQLite.swift.git", from: "0.15.4")
   ]
   ```
 
@@ -111,7 +130,7 @@ install SQLite.swift with Carthage:
  2. Update your Cartfile to include the following:
 
     ```ruby
-    github "stephencelis/SQLite.swift" ~> 0.14.1
+    github "stephencelis/SQLite.swift" ~> 0.15.4
     ```
 
  3. Run `carthage update` and [add the appropriate framework][Carthage Usage].
@@ -141,7 +160,7 @@ install SQLite.swift with Carthage:
     use_frameworks!
 
     target 'YourAppTargetName' do
-        pod 'SQLite.swift', '~> 0.14.1'
+        pod 'SQLite.swift', '~> 0.15.4'
     end
     ```
 
@@ -155,7 +174,7 @@ with the OS you can require the `standalone` subspec:
 
 ```ruby
 target 'YourAppTargetName' do
-  pod 'SQLite.swift/standalone', '~> 0.14.1'
+  pod 'SQLite.swift/standalone', '~> 0.15.4'
 end
 ```
 
@@ -165,7 +184,7 @@ dependency to sqlite3 or one of its subspecs:
 
 ```ruby
 target 'YourAppTargetName' do
-  pod 'SQLite.swift/standalone', '~> 0.14.1'
+  pod 'SQLite.swift/standalone', '~> 0.15.4'
   pod 'sqlite3/fts5', '= 3.15.0'  # SQLite 3.15.0 with FTS5 enabled
 end
 ```
@@ -181,7 +200,7 @@ If you want to use [SQLCipher][] with SQLite.swift you can require the
 target 'YourAppTargetName' do
   # Make sure you only require the subspec, otherwise you app might link against
   # the system SQLite, which means the SQLCipher-specific methods won't work.
-  pod 'SQLite.swift/SQLCipher', '~> 0.14.1'
+  pod 'SQLite.swift/SQLCipher', '~> 0.15.4'
 end
 ```
 
@@ -691,7 +710,7 @@ do {
 }
 ```
 
-Multiple rows can be inserted at once by similarily calling `insertMany` with an array of
+Multiple rows can be inserted at once by similarly calling `insertMany` with an array of
 per-row [setters](#setters).
 
 ```swift
@@ -1142,11 +1161,11 @@ let query = managers
 chain.with(chain, recursive: true, as: query)
 // WITH RECURSIVE
 //   "chain" AS (
-//     SELECT * FROM "managers" WHERE "id" = 8 
-//     UNION 
-//     SELECT * from "chain" 
+//     SELECT * FROM "managers" WHERE "id" = 8
+//     UNION
+//     SELECT * from "chain"
 //     JOIN "managers" ON "chain"."manager_id" = "managers"."id"
-//   ) 
+//   )
 // SELECT * FROM "chain"
 ```
 
@@ -1156,7 +1175,7 @@ Column names and a materialization hint can optionally be provided.
 // Add a "level" column to the query representing manager's position in the chain
 let level = Expression<Int64>("level")
 
-let queryWithLevel = 
+let queryWithLevel =
     managers
         .select(id, managerId, 0)
         .where(id == 8)
@@ -1166,18 +1185,18 @@ let queryWithLevel =
                 .join(managers, on: chain[managerId] == managers[id])
         )
 
-chain.with(chain, 
-           columns: [id, managerId, level], 
+chain.with(chain,
+           columns: [id, managerId, level],
            recursive: true,
            hint: .materialize,
            as: queryWithLevel)
 // WITH RECURSIVE
 //   "chain" ("id", "manager_id", "level") AS MATERIALIZED (
-//     SELECT ("id", "manager_id", 0) FROM "managers" WHERE "id" = 8 
-//     UNION 
-//     SELECT ("manager"."id", "manager"."manager_id", "level" + 1) FROM "chain" 
+//     SELECT ("id", "manager_id", 0) FROM "managers" WHERE "id" = 8
+//     UNION
+//     SELECT ("manager"."id", "manager"."manager_id", "level" + 1) FROM "chain"
 //     JOIN "managers" ON "chain"."manager_id" = "managers"."id"
-//   ) 
+//   )
 // SELECT * FROM "chain"
 ```
 
@@ -1266,7 +1285,7 @@ let count = try db.scalar(users.filter(name != nil).count)
 We can upsert rows into a table by calling a [query’s](#queries) `upsert`
 function with a list of [setters](#setters)—typically [typed column
 expressions](#expressions) and values (which can also be expressions)—each
-joined by the `<-` operator. Upserting is like inserting, except if there is a 
+joined by the `<-` operator. Upserting is like inserting, except if there is a
 conflict on the specified column value, SQLite will perform an update on the row instead.
 
 ```swift
@@ -1564,6 +1583,17 @@ let schemaChanger = SchemaChanger(connection: db)
 try schemaChanger.rename(table: "users", to: "users_new")
 try schemaChanger.drop(table: "emails", ifExists: false)
 ```
+
+#### Creating Tables
+
+```swift
+let schemaChanger = SchemaChanger(connection: db)
+
+try schemaChanger.create(table: "users") { table in 
+    table.add(column: .init(name: "id", primaryKey: .init(autoIncrement: true), type: .INTEGER))
+    table.add(column: .init(name: "name", type: .TEXT, nullable: false))            
+}
+``` 
 
 ### Indexes
 
@@ -1874,6 +1904,11 @@ Most of SQLite’s
 [aggregate functions](https://www.sqlite.org/lang_aggfunc.html) have been
 surfaced in and type-audited for SQLite.swift.
 
+## Window SQLite Functions
+
+Most of SQLite's [window functions](https://www.sqlite.org/windowfunctions.html) have been
+surfaced in and type-audited for SQLite.swift. Currently only `OVER (ORDER BY ...)` windowing is possible. 
+
 ## Date and Time functions
 
 SQLite's [date and time](https://www.sqlite.org/lang_datefunc.html)
@@ -1957,7 +1992,7 @@ for row in stmt.bind(kUTTypeImage) { /* ... */ }
 ```
 
 > _Note:_ Prepared queries can be reused, and long lived prepared queries should be `reset()` after each use. Otherwise, the transaction (either [implicit or explicit](https://www.sqlite.org/lang_transaction.html#implicit_versus_explicit_transactions)) will be held open until the query is reset or finalized. This can affect performance. Statements are reset automatically during `deinit`.
-> 
+>
 > ```swift
 > someObj.statement = try db.prepare("SELECT * FROM attachments WHERE typeConformsTo(UTI, ?)")
 > for row in someObj.statement.bind(kUTTypeImage) { /* ... */ }
@@ -2134,7 +2169,7 @@ using the following functions.
         }
     }
     ```
-    
+
   - `run` prepares a single `Statement` object from a SQL string, optionally
     binds values to it (using the statement’s `bind` function), executes,
     and returns the statement.

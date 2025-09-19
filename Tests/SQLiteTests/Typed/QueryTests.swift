@@ -3,8 +3,8 @@ import XCTest
 import sqlite3
 #elseif SQLITE_SWIFT_SQLCIPHER
 import SQLCipher
-#elseif os(Linux)
-import CSQLite
+#elseif canImport(SwiftToolchainCSQLite)
+import SwiftToolchainCSQLite
 #else
 import SQLite3
 #endif
@@ -13,19 +13,19 @@ import SQLite3
 class QueryTests: XCTestCase {
 
     let users = Table("users")
-    let id = Expression<Int64>("id")
-    let email = Expression<String>("email")
-    let age = Expression<Int?>("age")
-    let admin = Expression<Bool>("admin")
-    let optionalAdmin = Expression<Bool?>("admin")
+    let id = SQLite.Expression<Int64>("id")
+    let email = SQLite.Expression<String>("email")
+    let age = SQLite.Expression<Int?>("age")
+    let admin = SQLite.Expression<Bool>("admin")
+    let optionalAdmin = SQLite.Expression<Bool?>("admin")
 
     let posts = Table("posts")
-    let userId = Expression<Int64>("user_id")
-    let categoryId = Expression<Int64>("category_id")
-    let published = Expression<Bool>("published")
+    let userId = SQLite.Expression<Int64>("user_id")
+    let categoryId = SQLite.Expression<Int64>("category_id")
+    let published = SQLite.Expression<Bool>("published")
 
     let categories = Table("categories")
-    let tag = Expression<String>("tag")
+    let tag = SQLite.Expression<String>("tag")
 
     func test_select_withExpression_compilesSelectClause() {
         assertSQL("SELECT \"email\" FROM \"users\"", users.select(email))
@@ -217,7 +217,7 @@ class QueryTests: XCTestCase {
     }
 
     func test_alias_aliasesTable() {
-        let managerId = Expression<Int64>("manager_id")
+        let managerId = SQLite.Expression<Int64>("manager_id")
 
         let managers = users.alias("managers")
 
@@ -364,13 +364,22 @@ class QueryTests: XCTestCase {
         let insert = try emails.insert(value)
         let encodedJSON = try JSONEncoder().encode(value1)
         let encodedJSONString = String(data: encodedJSON, encoding: .utf8)!
-        assertSQL(
+
+        let expectedSQL =
             """
             INSERT INTO \"emails\" (\"int\", \"string\", \"bool\", \"float\", \"double\", \"date\", \"uuid\", \"optional\",
              \"sub\") VALUES (1, '2', 1, 3.0, 4.0, '1970-01-01T00:00:00.000', 'E621E1F8-C36C-495A-93FC-0C247A3E6E5F',
              'optional', '\(encodedJSONString)')
-            """.replacingOccurrences(of: "\n", with: ""),
-            insert
+            """.replacingOccurrences(of: "\n", with: "")
+
+        // As JSON serialization gives a different result each time, we extract JSON and compare it by deserializing it
+        // and keep comparing the query but with the json replaced by the `JSON` string
+        let (expectedQuery, expectedJSON) = extractAndReplace(expectedSQL, regex: "\\{.*\\}", with: "JSON")
+        let (actualQuery, actualJSON) = extractAndReplace(insert.asSQL(), regex: "\\{.*\\}", with: "JSON")
+        XCTAssertEqual(expectedQuery, actualQuery)
+        XCTAssertEqual(
+            try JSONDecoder().decode(TestCodable.self, from: expectedJSON.data(using: .utf8)!),
+            try JSONDecoder().decode(TestCodable.self, from: actualJSON.data(using: .utf8)!)
         )
     }
     #endif
@@ -413,7 +422,7 @@ class QueryTests: XCTestCase {
 
     func test_upsert_encodable() throws {
         let emails = Table("emails")
-        let string = Expression<String>("string")
+        let string = SQLite.Expression<String>("string")
         let value = TestCodable(int: 1, string: "2", bool: true, float: 3, double: 4,
                                 date: Date(timeIntervalSince1970: 0), uuid: testUUIDValue, optional: nil, sub: nil)
         let insert = try emails.upsert(value, onConflictOf: string)

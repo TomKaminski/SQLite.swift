@@ -74,35 +74,45 @@ class SQLiteTestCase: XCTestCase {
 
 }
 
-let bool = Expression<Bool>("bool")
-let boolOptional = Expression<Bool?>("boolOptional")
+let bool = SQLite.Expression<Bool>("bool")
+let boolOptional = SQLite.Expression<Bool?>("boolOptional")
 
-let data = Expression<Blob>("blob")
-let dataOptional = Expression<Blob?>("blobOptional")
+let data = SQLite.Expression<Blob>("blob")
+let dataOptional = SQLite.Expression<Blob?>("blobOptional")
 
-let date = Expression<Date>("date")
-let dateOptional = Expression<Date?>("dateOptional")
+let date = SQLite.Expression<Date>("date")
+let dateOptional = SQLite.Expression<Date?>("dateOptional")
 
-let double = Expression<Double>("double")
-let doubleOptional = Expression<Double?>("doubleOptional")
+let double = SQLite.Expression<Double>("double")
+let doubleOptional = SQLite.Expression<Double?>("doubleOptional")
 
-let int = Expression<Int>("int")
-let intOptional = Expression<Int?>("intOptional")
+let int = SQLite.Expression<Int>("int")
+let intOptional = SQLite.Expression<Int?>("intOptional")
 
-let int64 = Expression<Int64>("int64")
-let int64Optional = Expression<Int64?>("int64Optional")
+let int64 = SQLite.Expression<Int64>("int64")
+let int64Optional = SQLite.Expression<Int64?>("int64Optional")
 
-let string = Expression<String>("string")
-let stringOptional = Expression<String?>("stringOptional")
+let string = SQLite.Expression<String>("string")
+let stringOptional = SQLite.Expression<String?>("stringOptional")
 
-let uuid = Expression<UUID>("uuid")
-let uuidOptional = Expression<UUID?>("uuidOptional")
+let uuid = SQLite.Expression<UUID>("uuid")
+let uuidOptional = SQLite.Expression<UUID?>("uuidOptional")
 
 let testUUIDValue = UUID(uuidString: "E621E1F8-C36C-495A-93FC-0C247A3E6E5F")!
 
 func assertSQL(_ expression1: @autoclosure () -> String, _ expression2: @autoclosure () -> Expressible,
                file: StaticString = #file, line: UInt = #line) {
     XCTAssertEqual(expression1(), expression2().asSQL(), file: file, line: line)
+}
+
+func extractAndReplace(_ value: String, regex: String, with replacement: String) -> (String, String) {
+    // We cannot use `Regex` because it is not available before iOS 16 :(
+    let regex = try! NSRegularExpression(pattern: regex)
+    let valueRange = NSRange(location: 0, length: value.utf16.count)
+    let match = regex.firstMatch(in: value, options: [], range: valueRange)!.range
+    let range = Range(match, in: value)!
+    let extractedValue = String(value[range])
+    return (value.replacingCharacters(in: range, with: replacement), extractedValue)
 }
 
 let table = Table("table")
@@ -154,14 +164,4 @@ struct TestOptionalCodable: Codable, Equatable {
     let double: Double?
     let date: Date?
     let uuid: UUID?
-
-    init(int: Int?, string: String?, bool: Bool?, float: Float?, double: Double?, date: Date?, uuid: UUID?) {
-        self.int = int
-        self.string = string
-        self.bool = bool
-        self.float = float
-        self.double = double
-        self.date = date
-        self.uuid = uuid
-    }
 }

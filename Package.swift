@@ -1,13 +1,46 @@
-// swift-tools-version:5.3
+// swift-tools-version:5.9
 import PackageDescription
+
+let deps: [Package.Dependency] = [
+    .github("swiftlang/swift-toolchain-sqlite", exact: "1.0.4")
+]
+
+let targets: [Target] = [
+    .target(
+        name: "SQLite",
+        dependencies: [
+            .product(name: "SwiftToolchainCSQLite", package: "swift-toolchain-sqlite", condition: .when(platforms: [.linux, .windows, .android]))
+        ],
+        exclude: [
+            "Info.plist"
+        ]
+    )
+]
+
+let testTargets: [Target] = [
+    .testTarget(
+        name: "SQLiteTests",
+        dependencies: [
+            "SQLite"
+        ],
+        path: "Tests/SQLiteTests",
+        exclude: [
+            "Info.plist"
+        ],
+        resources: [
+            .copy("Resources")
+        ]
+    )
+]
 
 let package = Package(
     name: "SQLite.swift",
     platforms: [
-        .iOS(.v9),
-        .macOS(.v10_10),
-        .watchOS(.v3),
-        .tvOS(.v9)
+        .iOS(.v12),
+        .macOS(.v10_13),
+        .watchOS(.v4),
+        .tvOS(.v12),
+        .visionOS(.v1)
     ],
     products: [
         .library(
@@ -15,34 +48,13 @@ let package = Package(
             targets: ["SQLite"]
         )
     ],
-    targets: [
-        .target(
-            name: "SQLite",
-            exclude: [
-                "Info.plist"
-            ]
-        ),
-        .testTarget(
-            name: "SQLiteTests",
-            dependencies: [
-                "SQLite"
-            ],
-            path: "Tests/SQLiteTests",
-            exclude: [
-                "Info.plist"
-            ],
-            resources: [
-                .copy("Resources")
-            ]
-        )
-    ]
+    dependencies: deps,
+    targets: targets + testTargets
 )
 
-#if os(Linux)
-package.dependencies = [
-    .package(url: "https://github.com/stephencelis/CSQLite.git", from: "0.0.3")
-]
-package.targets.first?.dependencies += [
-    .product(name: "CSQLite", package: "CSQLite")
-]
-#endif
+extension Package.Dependency {
+
+    static func github(_ repo: String, exact ver: Version) -> Package.Dependency {
+        .package(url: "https://github.com/\(repo)", exact: ver)
+    }
+}

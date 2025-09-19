@@ -26,8 +26,8 @@
 import sqlite3
 #elseif SQLITE_SWIFT_SQLCIPHER
 import SQLCipher
-#elseif os(Linux)
-import CSQLite
+#elseif canImport(SwiftToolchainCSQLite)
+import SwiftToolchainCSQLite
 #else
 import SQLite3
 #endif
@@ -38,6 +38,7 @@ public func *(_: Expression<Binding>?, _: Expression<Binding>?) -> Expression<Vo
     Expression(literal: "*")
 }
 
+// swiftlint:disable:next type_name
 public protocol _OptionalType {
 
     associatedtype WrappedType
@@ -108,7 +109,7 @@ extension String {
 }
 
 func transcode(_ literal: Binding?) -> String {
-    guard let literal = literal else { return "NULL" }
+    guard let literal else { return "NULL" }
 
     switch literal {
     case let blob as Blob:
@@ -120,9 +121,9 @@ func transcode(_ literal: Binding?) -> String {
     }
 }
 
-// swiftlint:disable force_cast
+// swiftlint:disable force_cast force_try
 func value<A: Value>(_ binding: Binding) -> A {
-    A.fromDatatypeValue(binding as! A.Datatype) as! A
+    try! A.fromDatatypeValue(binding as! A.Datatype) as! A
 }
 
 func value<A: Value>(_ binding: Binding?) -> A {

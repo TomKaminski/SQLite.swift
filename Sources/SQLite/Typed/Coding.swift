@@ -215,7 +215,7 @@ private class SQLiteEncoder: Encoder {
         }
 
         func encodeIfPresent(_ value: Int?, forKey key: SQLiteEncoder.SQLiteKeyedEncodingContainer<Key>.Key) throws {
-            if let value = value {
+            if let value {
                 try encode(value, forKey: key)
             } else if forcingNilValueSetters {
                 encoder.setters.append(Expression<Int?>(key.stringValue) <- nil)
@@ -223,7 +223,7 @@ private class SQLiteEncoder: Encoder {
         }
 
         func encodeIfPresent(_ value: Bool?, forKey key: Key) throws {
-            if let value = value {
+            if let value {
                 try encode(value, forKey: key)
             } else if forcingNilValueSetters {
                 encoder.setters.append(Expression<Bool?>(key.stringValue) <- nil)
@@ -231,7 +231,7 @@ private class SQLiteEncoder: Encoder {
         }
 
         func encodeIfPresent(_ value: Float?, forKey key: Key) throws {
-            if let value = value {
+            if let value {
                 try encode(value, forKey: key)
             } else if forcingNilValueSetters {
                 encoder.setters.append(Expression<Double?>(key.stringValue) <- nil)
@@ -239,7 +239,7 @@ private class SQLiteEncoder: Encoder {
         }
 
         func encodeIfPresent(_ value: Double?, forKey key: Key) throws {
-            if let value = value {
+            if let value {
                 try encode(value, forKey: key)
             } else if forcingNilValueSetters {
                 encoder.setters.append(Expression<Double?>(key.stringValue) <- nil)
@@ -247,7 +247,7 @@ private class SQLiteEncoder: Encoder {
         }
 
         func encodeIfPresent(_ value: String?, forKey key: MyKey) throws {
-            if let value = value {
+            if let value {
                 try encode(value, forKey: key)
             } else if forcingNilValueSetters {
                 encoder.setters.append(Expression<String?>(key.stringValue) <- nil)
@@ -270,7 +270,7 @@ private class SQLiteEncoder: Encoder {
         }
 
         func encodeIfPresent<T>(_ value: T?, forKey key: Key) throws where T: Swift.Encodable {
-            guard let value = value else {
+            guard let value else {
                 guard forcingNilValueSetters else {
                     return
                 }
@@ -462,6 +462,50 @@ private class SQLiteDecoder: Decoder {
                 guard let JSONString = try row.get(Expression<String?>(key.stringValue)) else {
                     throw DecodingError.typeMismatch(type, DecodingError.Context(codingPath: codingPath,
                                                                                  debugDescription: "an unsupported type was found"))
+                }
+                guard let data = JSONString.data(using: .utf8) else {
+                    throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath,
+                                                                            debugDescription: "invalid utf8 data found"))
+                }
+                return try JSONDecoder().decode(type, from: data)
+            }
+        }
+
+        func decodeIfPresent(_ type: Bool.Type, forKey key: Key) throws -> Bool? {
+            try? row.get(Expression(key.stringValue))
+        }
+
+        func decodeIfPresent(_ type: Int.Type, forKey key: Key) throws -> Int? {
+            try? row.get(Expression(key.stringValue))
+        }
+
+        func decodeIfPresent(_ type: Int64.Type, forKey key: Key) throws -> Int64? {
+            try? row.get(Expression(key.stringValue))
+        }
+
+        func decodeIfPresent(_ type: Float.Type, forKey key: Key) throws -> Float? {
+            try? Float(row.get(Expression<Double>(key.stringValue)))
+        }
+
+        func decodeIfPresent(_ type: Double.Type, forKey key: Key) throws -> Double? {
+            try? row.get(Expression(key.stringValue))
+        }
+
+        func decodeIfPresent(_ type: String.Type, forKey key: Key) throws -> String? {
+            try? row.get(Expression(key.stringValue))
+        }
+
+        func decodeIfPresent<T>(_ type: T.Type, forKey key: Key) throws -> T? where T: Swift.Decodable {
+            switch type {
+            case is Data.Type:
+                return try? row.get(Expression<Data>(key.stringValue)) as? T
+            case is Date.Type:
+                return try? row.get(Expression<Date>(key.stringValue)) as? T
+            case is UUID.Type:
+                return try? row.get(Expression<UUID>(key.stringValue)) as? T
+            default:
+                guard let JSONString = try row.get(Expression<String?>(key.stringValue)) else {
+                    return nil
                 }
                 guard let data = JSONString.data(using: .utf8) else {
                     throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: codingPath,

@@ -42,9 +42,9 @@ do {
     let db = try Connection("path/to/db.sqlite3")
 
     let users = Table("users")
-    let id = Expression<Int64>("id")
-    let name = Expression<String?>("name")
-    let email = Expression<String>("email")
+    let id = SQLite.Expression<Int64>("id")
+    let name = SQLite.Expression<String?>("name")
+    let email = SQLite.Expression<String>("email")
 
     try db.run(users.create { t in
         t.column(id, primaryKey: true)
@@ -83,6 +83,9 @@ do {
 }
 ```
 
+Note that `Expression` should be written as `SQLite.Expression` to avoid
+conflicts with the `SwiftUI.Expression` if you are using SwiftUI too.
+
 SQLite.swift also works as a lightweight, Swift-friendly wrapper over the C
 API.
 
@@ -90,7 +93,7 @@ API.
 // Wrap everything in a do...catch to handle errors
 do {
     // ...
-    
+
     let stmt = try db.prepare("INSERT INTO users (email) VALUES (?)")
     for email in ["betty@icloud.com", "cathy@icloud.com"] {
         try stmt.run(email)
@@ -119,9 +122,6 @@ interactively, from the Xcode project’s playground.
 
 ## Installation
 
-> _Note:_ Version 0.11.6 and later requires Swift 5 (and [Xcode](https://developer.apple.com/xcode/downloads/) 10.2) or greater.
-> Version 0.11.5 requires Swift 4.2 (and [Xcode](https://developer.apple.com/xcode/downloads/) 10.1) or greater.
-
 ### Swift Package Manager
 
 The [Swift Package Manager][] is a tool for managing the distribution of
@@ -131,7 +131,7 @@ Swift code.
 
   ```swift
   dependencies: [
-      .package(url: "https://github.com/stephencelis/SQLite.swift.git", from: "0.14.1")
+      .package(url: "https://github.com/stephencelis/SQLite.swift.git", from: "0.15.4")
   ]
   ```
 
@@ -155,7 +155,7 @@ install SQLite.swift with Carthage:
  2. Update your Cartfile to include the following:
 
     ```ruby
-    github "stephencelis/SQLite.swift" ~> 0.14.1
+    github "stephencelis/SQLite.swift" ~> 0.15.4
     ```
 
  3. Run `carthage update` and
@@ -186,7 +186,7 @@ SQLite.swift with CocoaPods:
     use_frameworks!
 
     target 'YourAppTargetName' do
-        pod 'SQLite.swift', '~> 0.14.0'
+        pod 'SQLite.swift', '~> 0.15.0'
     end
     ```
 
@@ -229,8 +229,6 @@ device:
 
 ## Communication
 
-[See the planning document] for a roadmap and existing feature requests.
-
 [Read the contributing guidelines][]. The _TL;DR_ (but please; _R_):
 
  - Need **help** or have a **general question**? [Ask on Stack
@@ -238,7 +236,6 @@ device:
  - Found a **bug** or have a **feature request**? [Open an issue][].
  - Want to **contribute**? [Submit a pull request][].
 
-[See the planning document]: /Documentation/Planning.md
 [Read the contributing guidelines]: ./CONTRIBUTING.md#contributing
 [Ask on Stack Overflow]: https://stackoverflow.com/questions/tagged/sqlite.swift
 [Open an issue]: https://github.com/stephencelis/SQLite.swift/issues/new
@@ -269,13 +266,12 @@ Looking for something else? Try another Swift wrapper (or [FMDB][]):
 
  - [GRDB](https://github.com/groue/GRDB.swift)
  - [SQLiteDB](https://github.com/FahimF/SQLiteDB)
- - [Squeal](https://github.com/nerdyc/Squeal)
 
 [Swift]: https://swift.org/
 [SQLite3]: https://www.sqlite.org
 [SQLite.swift]: https://github.com/stephencelis/SQLite.swift
 
-[GitHubActionBadge]: https://img.shields.io/github/workflow/status/stephencelis/SQLite.swift/Build%20and%20test
+[GitHubActionBadge]: https://img.shields.io/github/actions/workflow/status/stephencelis/SQLite.swift/build.yml?branch=master
 
 [CocoaPodsVersionBadge]: https://img.shields.io/cocoapods/v/SQLite.swift.svg?style=flat
 [CocoaPodsVersionLink]: https://cocoapods.org/pods/SQLite.swift

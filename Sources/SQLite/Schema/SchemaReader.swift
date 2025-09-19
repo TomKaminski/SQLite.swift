@@ -13,36 +13,53 @@ public class SchemaReader {
     // column name, data type, whether or not the column can be NULL, and the default value for the column. The
     // "pk" column in the result set is zero for columns that are not part of the primary key, and is the
     // index of the column in the primary key for columns that are part of the primary key.
-    public func columnDefinitions(table: String) throws  -> [ColumnDefinition] {
+    public func columnDefinitions(table: String) throws -> [ColumnDefinition] {
         func parsePrimaryKey(column: String) throws -> ColumnDefinition.PrimaryKey? {
             try createTableSQL(name: table).flatMap { .init(sql: $0) }
         }
 
         let foreignKeys: [String: [ColumnDefinition.ForeignKey]] =
-            Dictionary(grouping: try foreignKeys(table: table), by: { $0.column })
+            Dictionary(grouping: try foreignKeys(table: table), by: { $0.fromColumn })
 
-        return try connection.prepareRowIterator("PRAGMA table_info(\(table.quote()))")
+        let columnDefinitions = try connection.prepareRowIterator("PRAGMA table_info(\(table.quote()))")
             .map { (row: Row) -> ColumnDefinition in
                 ColumnDefinition(
                     name: row[TableInfoTable.nameColumn],
-                    primaryKey: row[TableInfoTable.primaryKeyColumn] == 1 ?
+                    primaryKey: (row[TableInfoTable.primaryKeyColumn] ?? 0) > 0 ?
                         try parsePrimaryKey(column: row[TableInfoTable.nameColumn]) : nil,
                     type: ColumnDefinition.Affinity(row[TableInfoTable.typeColumn]),
                     nullable: row[TableInfoTable.notNullColumn] == 0,
+                    unique: false,
                     defaultValue: LiteralValue(row[TableInfoTable.defaultValueColumn]),
                     references: foreignKeys[row[TableInfoTable.nameColumn]]?.first
                 )
             }
+
+        let internalIndexes = try indexDefinitions(table: table).filter { $0.isInternal }
+        return columnDefinitions.map { definition in
+            if let index = internalIndexes.first(where: { $0.columns.contains(definition.name) }), index.origin == .uniqueConstraint {
+
+                ColumnDefinition(name: definition.name,
+                                 primaryKey: definition.primaryKey,
+                                 type: definition.type,
+                                 nullable: definition.nullable,
+                                 unique: true,
+                                 defaultValue: definition.defaultValue,
+                                 references: definition.references)
+            } else {
+                definition
+            }
+        }
     }
 
     public func objectDefinitions(name: String? = nil,
                                   type: ObjectDefinition.ObjectType? = nil,
                                   temp: Bool = false) throws -> [ObjectDefinition] {
         var query: QueryType = SchemaTable.get(for: connection, temp: temp)
-        if let name = name {
+        if let name {
             query = query.where(SchemaTable.nameColumn == name)
         }
-        if let type = type {
+        if let type {
             query = query.where(SchemaTable.typeColumn == type.rawValue)
         }
         return try connection.prepare(query).map { row -> ObjectDefinition in
@@ -66,27 +83,26 @@ public class SchemaReader {
                 .first
         }
 
-        func columns(name: String) throws -> [String] {
+        func indexInfos(name: String) throws -> [IndexInfo] {
             try connection.prepareRowIterator("PRAGMA index_info(\(name.quote()))")
                 .compactMap { row in
-                    row[IndexInfoTable.nameColumn]
+                    IndexInfo(name: row[IndexInfoTable.nameColumn],
+                              columnRank: row[IndexInfoTable.seqnoColumn],
+                              columnRankWithinTable: row[IndexInfoTable.cidColumn])
+
                 }
         }
 
         return try connection.prepareRowIterator("PRAGMA index_list(\(table.quote()))")
             .compactMap { row -> IndexDefinition? in
                 let name = row[IndexListTable.nameColumn]
-                guard !name.starts(with: "sqlite_") else {
-                    // Indexes SQLite creates implicitly for internal use start with "sqlite_".
-                    // See https://www.sqlite.org/fileformat2.html#intschema
-                    return nil
-                }
                 return IndexDefinition(
                     table: table,
                     name: name,
                     unique: row[IndexListTable.uniqueColumn] == 1,
-                    columns: try columns(name: name),
-                    indexSQL: try indexSQL(name: name)
+                    columns: try indexInfos(name: name).compactMap { $0.name },
+                    indexSQL: try indexSQL(name: name),
+                    origin: IndexDefinition.Origin(rawValue: row[IndexListTable.originColumn])
                 )
             }
     }
@@ -95,9 +111,9 @@ public class SchemaReader {
         try connection.prepareRowIterator("PRAGMA foreign_key_list(\(table.quote()))")
             .map { row in
                 ColumnDefinition.ForeignKey(
-                    table: row[ForeignKeyListTable.tableColumn],
-                    column: row[ForeignKeyListTable.fromColumn],
-                    primaryKey: row[ForeignKeyListTable.toColumn],
+                    fromColumn: row[ForeignKeyListTable.fromColumn],
+                    toTable: row[ForeignKeyListTable.tableColumn],
+                    toColumn: row[ForeignKeyListTable.toColumn],
                     onUpdate: row[ForeignKeyListTable.onUpdateColumn] == TableBuilder.Dependency.noAction.rawValue
                         ? nil : row[ForeignKeyListTable.onUpdateColumn],
                     onDelete: row[ForeignKeyListTable.onDeleteColumn] == TableBuilder.Dependency.noAction.rawValue
@@ -122,6 +138,15 @@ public class SchemaReader {
             objectDefinitions(name: name, type: .table) +
             objectDefinitions(name: name, type: .table, temp: true)
         ).compactMap(\.sql).first
+    }
+
+    struct IndexInfo {
+        let name: String?
+        // The rank of the column within the index. (0 means left-most.)
+        let columnRank: Int
+        // The rank of the column within the table being indexed.
+        // A value of -1 means rowid and a value of -2 means that an expression is being used
+        let columnRankWithinTable: Int
     }
 }
 
@@ -159,11 +184,12 @@ private enum TableInfoTable {
 
 private enum IndexInfoTable {
     // The rank of the column within the index. (0 means left-most.)
-    static let seqnoColumn = Expression<Int64>("seqno")
+    static let seqnoColumn = Expression<Int>("seqno")
     // The rank of the column within the table being indexed.
     // A value of -1 means rowid and a value of -2 means that an expression is being used.
-    static let cidColumn = Expression<Int64>("cid")
-    // The name of the column being indexed. This columns is NULL if the column is the rowid or an expression.
+    static let cidColumn = Expression<Int>("cid")
+    // The name of the column being indexed.
+    // This columns is NULL if the column is the rowid or an expression.
     static let nameColumn = Expression<String?>("name")
 }
 
@@ -187,7 +213,7 @@ private enum ForeignKeyListTable {
     static let seqColumn = Expression<Int64>("seq")
     static let tableColumn = Expression<String>("table")
     static let fromColumn = Expression<String>("from")
-    static let toColumn = Expression<String>("to")
+    static let toColumn = Expression<String?>("to") // when null, use primary key
     static let onUpdateColumn = Expression<String>("on_update")
     static let onDeleteColumn = Expression<String>("on_delete")
     static let matchColumn = Expression<String>("match")

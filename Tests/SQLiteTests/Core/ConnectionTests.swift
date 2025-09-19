@@ -7,8 +7,8 @@ import Dispatch
 import sqlite3
 #elseif SQLITE_SWIFT_SQLCIPHER
 import SQLCipher
-#elseif os(Linux)
-import CSQLite
+#elseif canImport(SwiftToolchainCSQLite)
+import SwiftToolchainCSQLite
 #else
 import SQLite3
 #endif
@@ -109,6 +109,10 @@ class ConnectionTests: SQLiteTestCase {
         XCTAssertEqual(1, db.totalChanges)
         try insertUser("betsy")
         XCTAssertEqual(2, db.totalChanges)
+    }
+
+    func test_useExtendedErrorCodes_returnsFalseDefault() throws {
+        XCTAssertFalse(db.usesExtendedErrorCodes)
     }
 
     func test_prepare_preparesAndReturnsStatements() throws {
@@ -370,7 +374,7 @@ class ConnectionTests: SQLiteTestCase {
     }
 
     // https://github.com/stephencelis/SQLite.swift/issues/1071
-    #if !os(Linux)
+    #if !(os(Linux) || os(Android))
     func test_createFunction_withArrayArguments() throws {
         db.createFunction("hello") { $0[0].map { "Hello, \($0)!" } }
 

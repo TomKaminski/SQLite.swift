@@ -1036,10 +1036,29 @@ extension Connection {
             let column = names.removeLast()
             let namespace = names.joined(separator: ".")
 
+            // Return a copy of the input "with" clause stripping all subclauses besides "select", "join", and "with".
+            func strip(_ with: WithClauses) -> WithClauses {
+                var stripped = WithClauses()
+                stripped.recursive = with.recursive
+                for subclause in with.clauses {
+                    let query = subclause.query
+                    var strippedQuery = type(of: query).init(query.clauses.from.name, database: query.clauses.from.database)
+                    strippedQuery.clauses.select = query.clauses.select
+                    strippedQuery.clauses.join = query.clauses.join
+                    strippedQuery.clauses.with = strip(query.clauses.with)
+
+                    var strippedSubclause = WithClauses.Clause(alias: subclause.alias, query: strippedQuery)
+                    strippedSubclause.columns = subclause.columns
+                    stripped.clauses.append(strippedSubclause)
+                }
+                return stripped
+            }
+
             func expandGlob(_ namespace: Bool) -> (QueryType) throws -> Void {
-                { (queryType: QueryType) throws -> Void in
+                { (queryType: QueryType) throws in
                     var query = type(of: queryType).init(queryType.clauses.from.name, database: queryType.clauses.from.database)
                     query.clauses.select = queryType.clauses.select
+                    query.clauses.with = strip(queryType.clauses.with)
                     let expression = query.expression
                     var names = try self.prepare(expression.template, expression.bindings).columnNames.map { $0.quote() }
                     if namespace { names = names.map { "\(queryType.tableName().expression.template).\($0)" } }
@@ -1078,7 +1097,7 @@ extension Connection {
     public func scalar<V: Value>(_ query: ScalarQuery<V?>) throws -> V.ValueType? {
         let expression = query.expression
         guard let value = try scalar(expression.template, expression.bindings) as? V.Datatype else { return nil }
-        return V.fromDatatypeValue(value)
+        return try V.fromDatatypeValue(value)
     }
 
     public func scalar<V: Value>(_ query: Select<V>) throws -> V {
@@ -1086,10 +1105,10 @@ extension Connection {
         return value(try scalar(expression.template, expression.bindings))
     }
 
-    public func scalar<V: Value>(_ query: Select<V?>) throws ->  V.ValueType? {
+    public func scalar<V: Value>(_ query: Select<V?>) throws -> V.ValueType? {
         let expression = query.expression
         guard let value = try scalar(expression.template, expression.bindings) as? V.Datatype else { return nil }
-        return V.fromDatatypeValue(value)
+        return try V.fromDatatypeValue(value)
     }
 
     public func pluck(_ query: QueryType) throws -> Row? {
@@ -1181,9 +1200,9 @@ public struct Row {
     }
 
     public func get<V: Value>(_ column: Expression<V?>) throws -> V? {
-        func valueAtIndex(_ idx: Int) -> V? {
+        func valueAtIndex(_ idx: Int) throws -> V? {
             guard let value = values[idx] as? V.Datatype else { return nil }
-            return V.fromDatatypeValue(value) as? V
+            return try V.fromDatatypeValue(value) as? V
         }
 
         guard let idx = columnNames[column.template] else {
@@ -1205,10 +1224,10 @@ public struct Row {
                     similar: columnNames.keys.filter(similar).sorted()
                 )
             }
-            return valueAtIndex(columnNames[firstIndex].value)
+            return try valueAtIndex(columnNames[firstIndex].value)
         }
 
-        return valueAtIndex(idx)
+        return try valueAtIndex(idx)
     }
 
     public subscript<T: Value>(column: Expression<T>) -> T {

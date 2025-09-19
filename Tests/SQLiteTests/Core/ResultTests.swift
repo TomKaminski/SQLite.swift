@@ -6,8 +6,8 @@ import Foundation
 import sqlite3
 #elseif SQLITE_SWIFT_SQLCIPHER
 import SQLCipher
-#elseif os(Linux)
-import CSQLite
+#elseif canImport(SwiftToolchainCSQLite)
+import SwiftToolchainCSQLite
 #else
 import SQLite3
 #endif
@@ -52,5 +52,18 @@ class ResultTests: XCTestCase {
         let statement = try Statement(connection, "SELECT 1")
         XCTAssertEqual("not an error (SELECT 1) (code: 21)",
             Result(errorCode: SQLITE_MISUSE, connection: connection, statement: statement)?.description)
+    }
+
+    func test_init_extended_with_other_code_returns_error() {
+        connection.usesExtendedErrorCodes = true
+        if case .some(.extendedError(let message, let extendedCode, let statement)) =
+            Result(errorCode: SQLITE_MISUSE, connection: connection, statement: nil) {
+            XCTAssertEqual("not an error", message)
+            XCTAssertEqual(extendedCode, 0)
+            XCTAssertNil(statement)
+            XCTAssert(connection === connection)
+        } else {
+            XCTFail("no error")
+        }
     }
 }

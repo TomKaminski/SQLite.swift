@@ -54,7 +54,7 @@ let testTargets: [Target] = [
 let package = Package(
   name: "SQLite.swift",
   platforms: [
-    .iOS(.v12),
+    .iOS(.v13),
     .macOS(.v10_14),
     .watchOS(.v4),
     .tvOS(.v12),
